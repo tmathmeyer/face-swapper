@@ -23,6 +23,8 @@
   }
 
   cachedRandom = new Array();
+  var faces = {};
+
   randomString = function(len) {
     var text = new Array();
     var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -42,9 +44,18 @@
       return self.random(5);
     }
   }
+  var fake = 0;
   tryImage = function(id, cb) {
     img = new Image;
     img.crossOrigin = "Anonymous";
+    if (fake == 0) {
+      fake = 1;
+      id = "iuu3zls";
+    }
+    else if (fake == 1) {
+      fake = 2;
+      id = "p3TAQxtm";
+    }
     img.src = "http://i.imgur.com/"+id+".png";
     img.onload = function() {
       if (img != null && ((img.width==198 && img.height==160) || (img.width==161 && img.height==81))) {
@@ -63,10 +74,7 @@
       }
     }
   }
-  var ctrack;
-  cachedRandom = new Array();
-  sucList = new Array();
-  badList = new Array();
+
   setImage = function(which, whichoverlay, ctrack, redo) {
     tryImage(randomString(5), function(img, id, width, height){
       var context = document.getElementById(which).getContext('2d');
@@ -75,48 +83,26 @@
       setTimeout(function(){
         var image = document.getElementById(which);
         console.log("trying " + id + "["+width+", "+height+"]");
-        (function(success, broken, del){
-          ars = {
-            "clmtrackrConverged": success,
-            "clmtrackrNotFound": broken,
-            "clmtrackrLost": broken
-          };
-          removeall = function() {
-            Object.keys(ars).forEach(function(each){
-              document.removeEventListener(each, ars[each], false);
-            });
-          }
-          ars.clmtrackrConverged = function() {
-            removeall();
-            success();
-          }
-          ars.clmtrackrNotFound = function(){
-            removeall();
-            broken();
-          }
-          ars.clmtrackrLost = function(){
-            removeall();
-            broken();
-          }
-          document.addEventListener("clmtrackrConverged", ars.clmtrackrConverged, false);
-          document.addEventListener("clmtrackrNotFound", ars.clmtrackrNotFound, false);
-          document.addEventListener("clmtrackrLost", ars.clmtrackrLost, false);
-        })(function() {
-          document.getElementById(whichoverlay).getContext('2d').clearRect(0, 0, 500, 500);
-          ctrack.draw(document.getElementById(whichoverlay));
-          console.log("SUCCESS");
-          ctrack.stop();
-        }, function() {
+        var broken = function(event) {
           ctrack.stop();
           redo();
-        }, function(success, broken) {
           document.removeEventListener('clmtrackrNotFound', broken, false);
           document.removeEventListener('clmtrackrLost', broken, false);
+        }
+        var success = function(event) {
           document.removeEventListener("clmtrackrConverged", success, false);
-        });
-
+          document.removeEventListener("clmtrackrNotFound", broken, false);
+          document.removeEventListener("clmtrackrLost", broken, false);
+          document.getElementById(whichoverlay).getContext('2d').clearRect(0, 0, 500, 500);
+          ctrack.draw(document.getElementById(whichoverlay));
+          faces[which] = ctrack;
+          ctrack.stop();
+        }
+        document.addEventListener("clmtrackrConverged", success, false);
+        document.addEventListener("clmtrackrNotFound", broken, false);
+        document.addEventListener("clmtrackrLost", broken, false);
         ctrack.start(image);
-      }, 400);
+      }, 10);
     });
   }
   LEFTIMG=function(ctrack){
@@ -125,7 +111,7 @@
     setImage("leftimage", "leftoverlay", ctrack, function(){
       setTimeout(function(){
         LEFTIMG(ctrack);
-      }, 1000);
+      }, 10);
     });
   }
   RIGHTIMG=function(ctrack){
@@ -134,11 +120,150 @@
     setImage("rightimage", "rightoverlay", ctrack, function(){
       setTimeout(function(){
         RIGHTIMG(ctrack);
-      }, 1000);
+      }, 10);
     });
   }
 
+  dimens = function(pts) {
+    minX = 500;
+    minY = 500;
+    maxX = 0;
+    maxY = 0;
+    pts.forEach(function(each) {
+      if (each[0] > maxX) {
+        maxX = each[0];
+      }
+      if (each[0] < minX) {
+        minX = each[0];
+      }
+      if (each[1] > maxY) {
+        maxY = each[1];
+      }
+      if (each[1] < minY) {
+        minY = each[1];
+      }
+    });
+    maxX -= minX;
+    maxY -= minY;
+    return Math.sqrt(maxX*maxX + maxY*maxY);
+  }
+
+  dimensBox = function(pts) {
+    minX = 500;
+    minY = 500;
+    maxX = 0;
+    maxY = 0;
+    pts.forEach(function(each) {
+      if (each[0] > maxX) {
+        maxX = each[0];
+      }
+      if (each[0] < minX) {
+        minX = each[0];
+      }
+      if (each[1] > maxY) {
+        maxY = each[1];
+      }
+      if (each[1] < minY) {
+        minY = each[1];
+      }
+    });
+    return {
+      "X": minX,
+      "Y": minY,
+      "W": maxX - minX,
+      "H": maxY - minY
+    };
+  }
+
+  deform = function() {
+    var leftpts = faces.leftimage.getCurrentPosition();
+    var rightpts = faces.rightimage.getCurrentPosition();
+
+    var dest_ctx = document.getElementById("leftoverlay").getContext('2d');
+    var src_ctx = document.getElementById("rightimage");
+    dest_ctx.globalAlpha = 0.9
+    dest_ctx.clearRect(0, 0, 500, 500);
+
+    srcSize = dimens(rightpts);
+    destSize = dimens(leftpts);
+    destSize /= (srcSize / 10);
+
+    src_center_x = rightpts[62][0];
+    src_center_y = rightpts[62][1];
+    dest_center_x = leftpts[62][0];
+    dest_center_y = leftpts[62][1];
+
+    //dest_ctx.globalCompositeOperation = "lighter";
+    dest_ctx.beginPath();
+    dest_ctx.moveTo(leftpts[0][0], leftpts[0][1]);
+    for (var i = 1; i<20; i++) {
+      dest_ctx.lineTo(leftpts[i][0], leftpts[i][1]);
+    }
+    dest_ctx.closePath();
+    dest_ctx.save();
+    dest_ctx.clip();
+
+    srcFace = dimensBox(rightpts);
+    desFace = dimensBox(leftpts);
+
+    console.log(srcFace);
+    console.log(desFace);
+
+    dest_ctx.drawImage(src_ctx, srcFace.X, srcFace.Y, srcFace.W, srcFace.H
+                              , desFace.X, desFace.Y, desFace.W, desFace.H);
+    dest_ctx.restore();
+    /*
+    for (var i = 0; i<71; i++) {
+      destX = leftpts[i][0];
+      destY = leftpts[i][1];
+
+      srcX = rightpts[i][0];
+      srcY = rightpts[i][1];
+
+      sdy = srcY - src_center_y;
+      sdx = srcX - src_center_x;
+
+      ddy = destY - dest_center_y;
+      ddx = destX - dest_center_y;
+
+      StopX = srcX - 10;
+      StopY = srcY - 10;
+      DtopX = destX - destSize;
+      DtopY = destY - destSize;
+
+      if (Math.abs(ddy) > 10) {
+        DtopY -= (3 * (Math.abs(ddy) / ddy));
+      }
+      if (Math.abs(ddx) > 10) {
+        DtopX -= (3 * (Math.abs(ddx) / ddx));
+      }
+
+      if (Math.abs(sdy) > 10) {
+        StopY -= (3 * (Math.abs(sdy) / sdy));
+      }
+      if (Math.abs(sdx) > 10) {
+        StopX -= (3 * (Math.abs(sdx) / sdx));
+      }
+
+      ds2 = destSize * 2;
+      //dest_ctx.drawImage(src_ctx, StopX, StopY, 20, 20, DtopX, DtopY, destSize*2, destSize*2);
+      //dest_ctx.rect(DtopX, DtopY, destSize*2, destSize*2)
+      //dest_ctx.stroke();
+
+      dest_ctx.drawImage(src_ctx, StopX, StopY, 20, 20, DtopX, DtopY, ds2, ds2);
+    }
+    */
+  }
+
   $(document).ready(function(){
+    img = new Image;
+    img.crossOrigin = "Anonymous";
+    img.src = "http://i.imgur.com/ByMhm6q.png";
+    img.onload = function() {
+      document.getElementById("leftimage").getContext('2d').drawImage(img, 0, 0, 500, 500);
+      document.getElementById("rightimage").getContext('2d').drawImage(img, 0, 0, 500, 500);
+    }
+
     var lctrack = new clm.tracker({stopOnConvergence : true});
     lctrack.init(pModel);
 
@@ -151,8 +276,6 @@
     document.getElementById('rightoverlay').addEventListener('click', function(){
       RIGHTIMG(rctrack);
     });
-    RIGHTIMG(rctrack);
-    LEFTIMG(lctrack);
   });
   </script>
   <style>
@@ -258,7 +381,9 @@
     </div>
   </div>
   <div id="infodisp">
-
+    <center>
+      <button onclick="deform()">Swap Faces</button>
+    </center>
   </div>
 </body>
 </html>

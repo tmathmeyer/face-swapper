@@ -1,0 +1,264 @@
+<html>
+<head>
+  <script src="clmtrackr.js"></script>
+  <script src="model_pca_20_svm.js"></script>
+  <link href='https://fonts.googleapis.com/css?family=Poiret+One' rel='stylesheet' type='text/css'>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+  <script>
+  randGallery = function(cb) {
+    $.ajax({
+      //url: 'https://api.imgur.com/3/gallery/search/time/0?q=pear',
+      url: 'https://api.imgur.com/3/gallery/random/random/',
+      method: 'GET',
+      headers: {
+        Authorization: 'Client-ID b6f8900d70cab18',
+        Accept: 'application/json'
+      },
+      data: {
+        image: localStorage.imageBase64,
+        type: 'base64'
+      },
+      success: cb
+    });
+  }
+
+  cachedRandom = new Array();
+  randomString = function(len) {
+    var text = new Array();
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i=0; i < len; i++) {
+      imgurchar = possible.charAt(Math.floor(Math.random() * possible.length));
+      if (text.indexOf(imgurchar) == -1) {
+        text.push(imgurchar);
+      } else {
+        i--;
+      }
+    }
+    text = text.join('');
+    if (cachedRandom.indexOf(text) == -1) {
+      cachedRandom.push(text);
+      return text;
+    } else {
+      return self.random(5);
+    }
+  }
+  tryImage = function(id, cb) {
+    img = new Image;
+    img.crossOrigin = "Anonymous";
+    img.src = "http://i.imgur.com/"+id+".png";
+    img.onload = function() {
+      if (img != null && ((img.width==198 && img.height==160) || (img.width==161 && img.height==81))) {
+        tryImage(randomString(5), cb);
+      } else {
+        if (img != null) {
+          if (img.width == 0 && img.height == 0) {
+            setTimeout(function(){
+              tryImage(randomString(5), cb);
+            }, 100);
+          } else {
+            cb(img, id, img.width, img.height);
+          }
+        }
+        img = null;
+      }
+    }
+  }
+  var ctrack;
+  cachedRandom = new Array();
+  sucList = new Array();
+  badList = new Array();
+  setImage = function(which, whichoverlay, ctrack, redo) {
+    tryImage(randomString(5), function(img, id, width, height){
+      var context = document.getElementById(which).getContext('2d');
+      context.clearRect(0, 0, 500, 500);
+      context.drawImage(img, 0, 0, width, height);
+      setTimeout(function(){
+        var image = document.getElementById(which);
+        console.log("trying " + id + "["+width+", "+height+"]");
+        (function(success, broken, del){
+          ars = {
+            "clmtrackrConverged": success,
+            "clmtrackrNotFound": broken,
+            "clmtrackrLost": broken
+          };
+          removeall = function() {
+            Object.keys(ars).forEach(function(each){
+              document.removeEventListener(each, ars[each], false);
+            });
+          }
+          ars.clmtrackrConverged = function() {
+            removeall();
+            success();
+          }
+          ars.clmtrackrNotFound = function(){
+            removeall();
+            broken();
+          }
+          ars.clmtrackrLost = function(){
+            removeall();
+            broken();
+          }
+          document.addEventListener("clmtrackrConverged", ars.clmtrackrConverged, false);
+          document.addEventListener("clmtrackrNotFound", ars.clmtrackrNotFound, false);
+          document.addEventListener("clmtrackrLost", ars.clmtrackrLost, false);
+        })(function() {
+          document.getElementById(whichoverlay).getContext('2d').clearRect(0, 0, 500, 500);
+          ctrack.draw(document.getElementById(whichoverlay));
+          console.log("SUCCESS");
+          ctrack.stop();
+        }, function() {
+          ctrack.stop();
+          redo();
+        }, function(success, broken) {
+          document.removeEventListener('clmtrackrNotFound', broken, false);
+          document.removeEventListener('clmtrackrLost', broken, false);
+          document.removeEventListener("clmtrackrConverged", success, false);
+        });
+
+        ctrack.start(image);
+      }, 400);
+    });
+  }
+  LEFTIMG=function(ctrack){
+    document.getElementById("leftoverlay").getContext('2d').clearRect(0, 0, 500, 500);
+    ctrack.reset();
+    setImage("leftimage", "leftoverlay", ctrack, function(){
+      setTimeout(function(){
+        LEFTIMG(ctrack);
+      }, 1000);
+    });
+  }
+  RIGHTIMG=function(ctrack){
+    document.getElementById("rightoverlay").getContext('2d').clearRect(0, 0, 500, 500);
+    ctrack.reset();
+    setImage("rightimage", "rightoverlay", ctrack, function(){
+      setTimeout(function(){
+        RIGHTIMG(ctrack);
+      }, 1000);
+    });
+  }
+
+  $(document).ready(function(){
+    var lctrack = new clm.tracker({stopOnConvergence : true});
+    lctrack.init(pModel);
+
+    var rctrack = new clm.tracker({stopOnConvergence : true});
+    rctrack.init(pModel);
+
+    document.getElementById('leftoverlay').addEventListener('click', function(){
+      LEFTIMG(lctrack);
+    });
+    document.getElementById('rightoverlay').addEventListener('click', function(){
+      RIGHTIMG(rctrack);
+    });
+    RIGHTIMG(rctrack);
+    LEFTIMG(lctrack);
+  });
+  </script>
+  <style>
+  #headerbar {
+    position: fixed;
+    width: 100%;
+    left:0;
+    top:0;
+    height: 90px;
+    background-color: #142204;
+    color: #edfffd;
+    font-family: 'Poiret One', cursive;
+  }
+  #imageselector {
+    border-top: 1px dotted #ccffcc;
+    background-color: #142204;
+    color: #edfffd;
+    position: fixed;
+    width: 100%;
+    left:0;
+    top:90px;
+    bottom:90px;
+  }
+  #infodisp {
+    border-top: 1px dotted #ccffcc;
+    background-color: #142204;
+    color: #edfffd;
+    position: fixed;
+    width: 100%;
+    left:0;
+    bottom:0;
+    height:90px;
+  }
+  #directions {
+    position: relative;
+    padding-top: 10px;
+    width:100%;
+    float: left;
+  }
+  #images {
+    position: absolute;
+    width:100%;
+    float: left;
+    top: 40px;
+  }
+  #leftimage {
+    position: absolute;
+    height: 500px;
+    width: 500px;
+    float: left;
+    overflow: auto;
+    left: 0;
+    top: 0;
+  }
+  #leftoverlay {
+    position: absolute;
+    height: 500px;
+    width: 500px;
+    float: left;
+    overflow: auto;
+    left: 0;
+    top: 0;
+  }
+  #rightimage {
+    position: absolute;
+    height: 500px;
+    width: 500px;
+    float: left;
+    overflow: auto;
+    left: 500px;
+    top: 0;
+  }
+  #rightoverlay {
+    position: absolute;
+    height: 500px;
+    width: 500px;
+    float: left;
+    overflow: auto;
+    left: 500px;
+    top: 0;
+  }
+  </style>
+</head>
+<body>
+  <div id="headerbar">
+    <center>
+      <h1>
+        Face Swapper
+      </h1>
+    </center>
+  </div>
+  <div id="imageselector">
+    <div id="directions">
+      <center>
+        Click on an image to get a new One
+      </center>
+    </div>
+    <div id="images">
+      <canvas id="leftimage" width="500px" height="500px" onclick="LEFTIMG()"></canvas>
+      <canvas id="leftoverlay" width="500px" height="500px"></canvas>
+      <canvas id="rightimage" width="500px" height="500px" onclick="RIGHTIMG()"></canvas>
+      <canvas id="rightoverlay" width="500px" height="500px"></canvas>
+    </div>
+  </div>
+  <div id="infodisp">
+
+  </div>
+</body>
+</html>

@@ -4,26 +4,12 @@
   <script src="model_pca_20_svm.js"></script>
   <link href='https://fonts.googleapis.com/css?family=Poiret+One' rel='stylesheet' type='text/css'>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+  <link href='https://fonts.googleapis.com/css?family=Alegreya+Sans' rel='stylesheet' type='text/css'>
   <script>
-  randGallery = function(cb) {
-    $.ajax({
-      //url: 'https://api.imgur.com/3/gallery/search/time/0?q=pear',
-      url: 'https://api.imgur.com/3/gallery/random/random/',
-      method: 'GET',
-      headers: {
-        Authorization: 'Client-ID b6f8900d70cab18',
-        Accept: 'application/json'
-      },
-      data: {
-        image: localStorage.imageBase64,
-        type: 'base64'
-      },
-      success: cb
-    });
-  }
 
   cachedRandom = new Array();
   var faces = {};
+  var imgsize = 600;
 
   randomString = function(len) {
     var text = new Array();
@@ -54,7 +40,7 @@
     }
     else if (fake == 1) {
       fake = 2;
-      id = "p3TAQxtm";
+      id = "afxMt20";
     }
     img.src = "http://i.imgur.com/"+id+".png";
     img.onload = function() {
@@ -78,7 +64,7 @@
   setImage = function(which, whichoverlay, ctrack, redo) {
     tryImage(randomString(5), function(img, id, width, height){
       var context = document.getElementById(which).getContext('2d');
-      context.clearRect(0, 0, 500, 500);
+      context.clearRect(0, 0, imgsize, imgsize);
       context.drawImage(img, 0, 0, width, height);
       setTimeout(function(){
         var image = document.getElementById(which);
@@ -93,7 +79,7 @@
           document.removeEventListener("clmtrackrConverged", success, false);
           document.removeEventListener("clmtrackrNotFound", broken, false);
           document.removeEventListener("clmtrackrLost", broken, false);
-          document.getElementById(whichoverlay).getContext('2d').clearRect(0, 0, 500, 500);
+          document.getElementById(whichoverlay).getContext('2d').clearRect(0, 0, imgsize, imgsize);
           ctrack.draw(document.getElementById(whichoverlay));
           faces[which] = ctrack;
           ctrack.stop();
@@ -106,7 +92,7 @@
     });
   }
   LEFTIMG=function(ctrack){
-    document.getElementById("leftoverlay").getContext('2d').clearRect(0, 0, 500, 500);
+    document.getElementById("leftoverlay").getContext('2d').clearRect(0, 0, imgsize, imgsize);
     ctrack.reset();
     setImage("leftimage", "leftoverlay", ctrack, function(){
       setTimeout(function(){
@@ -115,7 +101,7 @@
     });
   }
   RIGHTIMG=function(ctrack){
-    document.getElementById("rightoverlay").getContext('2d').clearRect(0, 0, 500, 500);
+    document.getElementById("rightoverlay").getContext('2d').clearRect(0, 0, imgsize, imgsize);
     ctrack.reset();
     setImage("rightimage", "rightoverlay", ctrack, function(){
       setTimeout(function(){
@@ -125,8 +111,8 @@
   }
 
   dimens = function(pts) {
-    minX = 500;
-    minY = 500;
+    minX = imgsize;
+    minY = imgsize;
     maxX = 0;
     maxY = 0;
     pts.forEach(function(each) {
@@ -149,8 +135,8 @@
   }
 
   dimensBox = function(pts) {
-    minX = 500;
-    minY = 500;
+    minX = imgsize;
+    minY = imgsize;
     maxX = 0;
     maxY = 0;
     pts.forEach(function(each) {
@@ -179,10 +165,16 @@
     var leftpts = faces.leftimage.getCurrentPosition();
     var rightpts = faces.rightimage.getCurrentPosition();
 
-    var dest_ctx = document.getElementById("leftoverlay").getContext('2d');
     var src_ctx = document.getElementById("rightimage");
+    var src_ctx2 = document.getElementById("leftimage");
+
+    var dest_ctx = document.getElementById("leftoverlay").getContext('2d');
+    var dest_ctx2 = document.getElementById("rightoverlay").getContext('2d');
+
     dest_ctx.globalAlpha = 0.9
-    dest_ctx.clearRect(0, 0, 500, 500);
+    dest_ctx.clearRect(0, 0, imgsize, imgsize);
+    dest_ctx2.globalAlpha = 0.9
+    dest_ctx2.clearRect(0, 0, imgsize, imgsize);
 
     srcSize = dimens(rightpts);
     destSize = dimens(leftpts);
@@ -195,13 +187,23 @@
 
     //dest_ctx.globalCompositeOperation = "lighter";
     dest_ctx.beginPath();
+    dest_ctx2.beginPath();
     dest_ctx.moveTo(leftpts[0][0], leftpts[0][1]);
+    dest_ctx2.moveTo(rightpts[0][0], rightpts[0][1]);
     for (var i = 1; i<20; i++) {
       dest_ctx.lineTo(leftpts[i][0], leftpts[i][1]);
+      dest_ctx2.lineTo(rightpts[i][0], rightpts[i][1]);
+    }
+    for (var i = 22; i>18; i--) {
+      dest_ctx.lineTo(leftpts[i][0], leftpts[i][1]);
+      dest_ctx2.lineTo(rightpts[i][0], rightpts[i][1]);
     }
     dest_ctx.closePath();
     dest_ctx.save();
     dest_ctx.clip();
+    dest_ctx2.closePath();
+    dest_ctx2.save();
+    dest_ctx2.clip();
 
     srcFace = dimensBox(rightpts);
     desFace = dimensBox(leftpts);
@@ -212,56 +214,19 @@
     dest_ctx.drawImage(src_ctx, srcFace.X, srcFace.Y, srcFace.W, srcFace.H
                               , desFace.X, desFace.Y, desFace.W, desFace.H);
     dest_ctx.restore();
-    /*
-    for (var i = 0; i<71; i++) {
-      destX = leftpts[i][0];
-      destY = leftpts[i][1];
 
-      srcX = rightpts[i][0];
-      srcY = rightpts[i][1];
-
-      sdy = srcY - src_center_y;
-      sdx = srcX - src_center_x;
-
-      ddy = destY - dest_center_y;
-      ddx = destX - dest_center_y;
-
-      StopX = srcX - 10;
-      StopY = srcY - 10;
-      DtopX = destX - destSize;
-      DtopY = destY - destSize;
-
-      if (Math.abs(ddy) > 10) {
-        DtopY -= (3 * (Math.abs(ddy) / ddy));
-      }
-      if (Math.abs(ddx) > 10) {
-        DtopX -= (3 * (Math.abs(ddx) / ddx));
-      }
-
-      if (Math.abs(sdy) > 10) {
-        StopY -= (3 * (Math.abs(sdy) / sdy));
-      }
-      if (Math.abs(sdx) > 10) {
-        StopX -= (3 * (Math.abs(sdx) / sdx));
-      }
-
-      ds2 = destSize * 2;
-      //dest_ctx.drawImage(src_ctx, StopX, StopY, 20, 20, DtopX, DtopY, destSize*2, destSize*2);
-      //dest_ctx.rect(DtopX, DtopY, destSize*2, destSize*2)
-      //dest_ctx.stroke();
-
-      dest_ctx.drawImage(src_ctx, StopX, StopY, 20, 20, DtopX, DtopY, ds2, ds2);
-    }
-    */
+    dest_ctx2.drawImage(src_ctx2, desFace.X, desFace.Y, desFace.W, desFace.H
+                               , srcFace.X, srcFace.Y, srcFace.W, srcFace.H);
+    dest_ctx2.restore();
   }
 
   $(document).ready(function(){
     img = new Image;
     img.crossOrigin = "Anonymous";
-    img.src = "http://i.imgur.com/ByMhm6q.png";
+    img.src = "http://i.imgur.com/UEFOU7J.png";
     img.onload = function() {
-      document.getElementById("leftimage").getContext('2d').drawImage(img, 0, 0, 500, 500);
-      document.getElementById("rightimage").getContext('2d').drawImage(img, 0, 0, 500, 500);
+      document.getElementById("leftimage").getContext('2d').drawImage(img, 0, 0, imgsize, imgsize);
+      document.getElementById("rightimage").getContext('2d').drawImage(img, 0, 0, imgsize, imgsize);
     }
 
     var lctrack = new clm.tracker({stopOnConvergence : true});
@@ -308,55 +273,87 @@
     left:0;
     bottom:0;
     height:90px;
+    padding-top: 20px;
   }
-  #directions {
+  #directions_bar {
     position: relative;
-    padding-top: 10px;
     width:100%;
     float: left;
+  }
+  #directions {
+    width: 300px;
+    margin: 0 auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-family: 'Alegreya Sans', sans-serif;
+    border-bottom: 1px dotted #ccffcc;
+    border-left: 1px dotted #ccffcc;
+    border-right: 1px dotted #ccffcc;
   }
   #images {
     position: absolute;
     width:100%;
+    height: 100%;
     float: left;
     top: 40px;
   }
-  #leftimage {
-    position: absolute;
-    height: 500px;
-    width: 500px;
-    float: left;
-    overflow: auto;
+
+  #left {
+    position:absolute;
+    width: 50%;
+    height: 100%;
     left: 0;
-    top: 0;
-  }
-  #leftoverlay {
-    position: absolute;
-    height: 500px;
-    width: 500px;
-    float: left;
     overflow: auto;
-    left: 0;
-    top: 0;
   }
-  #rightimage {
-    position: absolute;
-    height: 500px;
-    width: 500px;
-    float: left;
+
+  #right {
+    position:absolute;
+    width: 50%;
+    left: 50%;
+    height: 100%;
     overflow: auto;
-    left: 500px;
-    top: 0;
+    border-left: 1px dotted #ccffcc;
   }
-  #rightoverlay {
+
+  #leftimage, #leftoverlay, #rightimage, #rightoverlay {
     position: absolute;
-    height: 500px;
-    width: 500px;
     float: left;
-    overflow: auto;
-    left: 500px;
-    top: 0;
+    left: calc(50% - 300px);
+    top: calc(50% - 300px);
   }
+
+  #swapbtn {
+    margin: 0 auto;
+    width: 118px;
+  }
+
+  .btn {
+    background: #3498db;
+    background-image: -webkit-linear-gradient(top, #3498db, #2980b9);
+    background-image: -moz-linear-gradient(top, #3498db, #2980b9);
+    background-image: -ms-linear-gradient(top, #3498db, #2980b9);
+    background-image: -o-linear-gradient(top, #3498db, #2980b9);
+    background-image: linear-gradient(to bottom, #3498db, #2980b9);
+    -webkit-border-radius: 7;
+    -moz-border-radius: 7;
+    border-radius: 7px;
+    font-family: Arial;
+    color: #ffffff;
+    font-size: 20px;
+    padding: 10px 20px 10px 20px;
+    text-decoration: none;
+  }
+
+  .btn:hover {
+    background: #3cb0fd;
+    background-image: -webkit-linear-gradient(top, #3cb0fd, #3498db);
+    background-image: -moz-linear-gradient(top, #3cb0fd, #3498db);
+    background-image: -ms-linear-gradient(top, #3cb0fd, #3498db);
+    background-image: -o-linear-gradient(top, #3cb0fd, #3498db);
+    background-image: linear-gradient(to bottom, #3cb0fd, #3498db);
+    text-decoration: none;
+  }
+
   </style>
 </head>
 <body>
@@ -368,22 +365,26 @@
     </center>
   </div>
   <div id="imageselector">
-    <div id="directions">
-      <center>
-        Click on an image to get a new One
-      </center>
+    <div id="directions_bar">
+      <div id="directions">
+        <center>
+          Click on an image to get a new One
+        </center>
+      </div>
     </div>
     <div id="images">
-      <canvas id="leftimage" width="500px" height="500px" onclick="LEFTIMG()"></canvas>
-      <canvas id="leftoverlay" width="500px" height="500px"></canvas>
-      <canvas id="rightimage" width="500px" height="500px" onclick="RIGHTIMG()"></canvas>
-      <canvas id="rightoverlay" width="500px" height="500px"></canvas>
+      <div id = "left">
+        <canvas id="leftimage" width="600px" height="600px" onclick="LEFTIMG()"></canvas>
+        <canvas id="leftoverlay" width="600px" height="600px"></canvas>
+      </div>
+      <div id = "right">
+        <canvas id="rightimage" width="600px" height="600px" onclick="RIGHTIMG()"></canvas>
+        <canvas id="rightoverlay" width="600px" height="600px"></canvas>
+      </div>
     </div>
   </div>
   <div id="infodisp">
-    <center>
-      <button onclick="deform()">Swap Faces</button>
-    </center>
+    <div id="swapbtn" class="btn" onclick="deform()">Swap Faces</div>
   </div>
 </body>
 </html>
